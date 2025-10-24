@@ -1,0 +1,14 @@
+# Environments
+.env
+
+# Ignore downloaded data
+**/data/
+
+# Ignore log files
+*.log
+
+# Ignore csv files
+*.csv
+
+# Ignore model checkpoints
+/src/training/unet_checkpoint.pth
