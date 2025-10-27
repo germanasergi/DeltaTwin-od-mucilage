@@ -8,10 +8,14 @@ import shutil
 import glob
 from pathlib import Path
 from loguru import logger
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import xarray as xr
+import rioxarray
+from rasterio.enums import Resampling
+from affine import Affine
 import boto3
 
 from tqdm import tqdm
@@ -38,6 +42,7 @@ def setup_environment(config):
     # Keep these from environment variables
     ACCESS_KEY_ID = os.environ.get("ACCESS_KEY_ID")
     SECRET_ACCESS_KEY = os.environ.get("SECRET_ACCESS_KEY")
+    PAT = os.environ.get("PAT")
 
     # Get other parameters from config
     ENDPOINT_URL = config['endpoint_url']
@@ -62,6 +67,7 @@ def setup_environment(config):
     return {
         'ACCESS_KEY_ID': ACCESS_KEY_ID,
         'SECRET_ACCESS_KEY': SECRET_ACCESS_KEY,
+        'PAT': PAT,
         'ENDPOINT_URL': ENDPOINT_URL,
         'ENDPOINT_STAC': ENDPOINT_STAC,
         'BUCKET_NAME': BUCKET_NAME,
@@ -217,6 +223,73 @@ def write_zarr_from_safe(safe_path, repo_path):
 
 ####################### PATCHES ##################################################################
 
+def pixel_to_world(col, row, transform):
+    x = transform.c + col * transform.a + transform.a / 2
+    y = transform.f + row * transform.e + transform.e / 2
+    return x, y
+
+# Convert from map coords → pixel indices
+def world_to_pixel(x, y, transform):
+    col = (x - transform.c) / transform.a
+    row = (y - transform.f) / transform.e
+    return col, row
+
+
+def load_era5_sst(ds, bbox, target_res, ref_band, date, pat):
+    """
+    Load ERA5 SST from EDH, crop to bbox, and reproject to Sentinel-2 grid.
+    """
+    era5 = xr.open_dataset(
+        f"https://edh:{pat}@data.earthdatahub.destine.eu/era5/reanalysis-era5-single-levels-v0.zarr",
+        chunks={},
+        engine="zarr",
+    )
+
+    if "sst" not in era5:
+        raise ValueError("ERA5 SST variable not found in dataset.")
+
+    sst = era5["sst"]
+
+    # Time selection (closest timestamp)
+    if date is not None:
+        t = np.datetime64(datetime.fromisoformat(str(date)).replace(tzinfo=None))
+        sst = sst.sel(valid_time=t, method="nearest")
+
+    # Robust bbox cropping — ERA5 grid is coarse (~0.25°)
+    lon_min, lat_min, lon_max, lat_max = bbox
+    sst = sst.sel(
+        longitude=slice(lon_min - 0.25, lon_max + 0.25),
+        latitude=slice(lat_max + 0.25, lat_min - 0.25)  # descending latitude
+    )
+
+    if sst.longitude.size == 0 or sst.latitude.size == 0:
+        raise ValueError("No ERA5 SST data found in or near the requested bbox.")
+
+    # Rename dims to match rioxarray convention
+    sst = sst.rename({"longitude": "x", "latitude": "y"}).transpose("y", "x")
+
+    # Assign CRS (ERA5 is in EPSG:4326)
+    sst = sst.rio.write_crs("EPSG:4326")
+
+    # Get reference Sentinel-2 band (for reprojection and shape match)
+    ref = ds[f"measurements/reflectance/{target_res}/{ref_band}"].rio.write_crs("EPSG:32633")
+
+    # Reproject and match resolution to Sentinel-2
+    try:
+        sst_matched = sst.rio.reproject_match(ref)
+    except Exception as e:
+        raise RuntimeError(f"Failed to reproject ERA5 SST to Sentinel-2 grid: {e}")
+
+    # Fill missing values and scale if needed (ERA5 SST is in Kelvin)
+    sst_matched = sst_matched - 273.15  # convert to °C
+    sst_matched = sst_matched.fillna(sst_matched.mean())
+
+    # Match shape exactly (if any small diff remains)
+    sst_matched = sst_matched.interp_like(ref, method="nearest")
+
+    return sst_matched
+
+
 def clean_water_mask(ds, target_res="r10m"):
     """
     Fix water mask by:
@@ -273,7 +346,7 @@ def resample_band(ds, band, target_res="r10m", ref="b04", crs="EPSG:32632"):
     return band_da.rio.reproject_match(ref_band)
     
 
-def build_stack(ds, bands, target_res="r10m", ref_band="b04", crs="EPSG:32632"):
+def build_stack(ds, bands, target_res="r10m", ref_band="b04", crs="EPSG:32632", bbox=None, date=None, pat=None):
     """
     Build a lazy dask-backed (H, W, C) stack from bands, resampling as needed.
 
@@ -294,6 +367,11 @@ def build_stack(ds, bands, target_res="r10m", ref_band="b04", crs="EPSG:32632"):
            b in ds['measurements/reflectance/r20m'] or \
            b in ds['measurements/reflectance/r60m']:
             arr = resample_band(ds, b, target_res=target_res, ref=ref_band, crs=crs) / 10000.0
+            print(f"Loaded band {b} with shape: {arr.shape}")
+        elif b == "sst":
+            arr = load_era5_sst(ds, bbox=bbox, target_res=target_res, ref_band=ref_band, date=date, pat=pat)
+            print(f"Loaded SST band with shape: {arr.shape}")
+            #arr = resample_band(ds, b, target_res=target_res, ref=ref_band, crs=crs) / 10000.0
         else:
             raise ValueError(f"Band {b} not found or not supported.")
 
@@ -302,12 +380,13 @@ def build_stack(ds, bands, target_res="r10m", ref_band="b04", crs="EPSG:32632"):
         stack.append(arr)
 
     # Concatenate all bands along 'band' dimension
+    print(f"Stacking total of {len(stack)} bands.")
     stacked = xr.concat(stack, dim="band").transpose("y", "x", "band")
     return stacked
 
 
 
-def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_size=256):
+def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_size=256, date=None, pat=None):
     """
     For each zarr file, extract top-left coordinates of sampled patches,
     and store them along with zarr path in a DataFrame.
@@ -316,11 +395,12 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
         df_patches: DataFrame with columns ['zarr_path', 'x', 'y']
     """
     records = []
+    patch_coords = []
 
     for zf in zarr_files:
         print(f"Processing {zf} for patch coordinates...")
         ds = xr.open_datatree(zf, engine="zarr", mask_and_scale=False, chunks={})
-        stack = build_stack(ds, bands,  target_res=target_res, ref_band="b04")
+        stack = build_stack(ds, bands,  target_res=target_res, ref_band="b04", bbox=bbox, date=date, pat=pat)
 
         # Compute water mask
         water_mask = clean_water_mask(ds, target_res=target_res)
@@ -341,18 +421,12 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
             x_min, y_min = transformer.transform(lon_min, lat_min)
             x_max, y_max = transformer.transform(lon_max, lat_max)
 
-            # Convert from map coords → pixel indices
-            def world_to_pixel(x, y, transform):
-                col = int((x - transform.c) / transform.a)
-                row = int((transform.f - y) / -transform.e)
-                return col, row
-
             x0, y1 = world_to_pixel(x_min, y_min, transform)  # bottom-left
             x1, y0 = world_to_pixel(x_max, y_max, transform)  # top-right
 
             # Ensure ordering (y0 < y1, x0 < x1)
-            x0, x1 = sorted([x0, x1])
-            y0, y1 = sorted([y0, y1])
+            x0, x1 = sorted([int(x0), int(x1)])
+            y0, y1 = sorted([int(y0), int(y1)])
 
             # Clip indices to valid range
             H, W = valid_mask.shape
@@ -384,20 +458,16 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
                     continue
                 all_patches.append(patch)
 
-                # zarr_name = os.path.basename(zf).replace(".zarr", "")
-                # patch_name = f"{zarr_name}_y{y}_x{x}.npy"
-                # patch_path = os.path.join(output_dir, patch_name)
-                # records.append({
-                #     "zarr_path": zf,
-                #     "patch_path": patch_path,
-                #     "y": y,
-                #     "x": x
-                # })
+                patch_coords.append({
+                    "zarr_file": zf,
+                    "x_pix": x + x0,
+                    "y_pix": y + y0
+                })
                 count += 1
     
     X = np.stack(all_patches, axis=0)
-    df_patches = pd.DataFrame(records)
+    df_coords = pd.DataFrame(patch_coords)
     print(f"Total patches collected: {X.shape[0]}")
 
-    return X
+    return X, df_coords
 
