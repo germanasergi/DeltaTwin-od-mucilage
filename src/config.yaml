@@ -6,7 +6,7 @@ bucket_name: 'eodata'
 # Dataset Configuration
 dataset_version: 'data'
 base_dir: '/home/ubuntu/mucilage_pipeline/DeltaTwin'
-bands: ['b01','b02', 'b03', 'b04', 'b05', 'b06', 'b07','b08','b8a', 'b11', 'b12']
+bands: ['b01','b02', 'b03', 'b04', 'b05', 'b06', 'b07','b08','b8a', 'b11', 'b12','sst']
 
 # Query Configuration
 query:

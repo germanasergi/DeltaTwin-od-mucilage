@@ -122,6 +122,16 @@ def visualize_patches_on_tile(zarr_file, patches_coords, patch_size=256, bbox=No
     plt.savefig(os.path.join(save_dir, f"patches_on_tile.png"), dpi=200)
     plt.close(fig)
 
+def visualize_sst(patch, save_dir):
+    sst = patch[:, :, -1]
+
+    plt.figure(figsize=(5, 5))
+    im = plt.imshow(sst, cmap="coolwarm", vmin=5, vmax=35)
+    plt.colorbar(im, label="SST (°C)")
+    plt.title(f"SST Band)")
+    plt.savefig(os.path.join(save_dir, f"sst.png"), dpi=200)
+    plt.close()
+
 
 def visualize_patch_prediction(patch, probs, pred, save_dir, patch_id="patch"):
     os.makedirs(save_dir, exist_ok=True)

@@ -257,9 +257,15 @@ def load_era5_sst(ds, bbox, target_res, ref_band, date, pat):
 
     # Robust bbox cropping — ERA5 grid is coarse (~0.25°)
     lon_min, lat_min, lon_max, lat_max = bbox
+
+    if sst.longitude.max() > 180:
+        # ERA5 0–360° convention → ensure bbox in same range
+        lon_min = lon_min % 360
+        lon_max = lon_max % 360
+
     sst = sst.sel(
-        longitude=slice(lon_min - 0.25, lon_max + 0.25),
-        latitude=slice(lat_max + 0.25, lat_min - 0.25)  # descending latitude
+        longitude=slice(lon_min - 0.5, lon_max + 0.5),
+        latitude=slice(lat_max + 0.5, lat_min - 0.5)  # descending latitude
     )
 
     if sst.longitude.size == 0 or sst.latitude.size == 0:
@@ -367,10 +373,8 @@ def build_stack(ds, bands, target_res="r10m", ref_band="b04", crs="EPSG:32632", 
            b in ds['measurements/reflectance/r20m'] or \
            b in ds['measurements/reflectance/r60m']:
             arr = resample_band(ds, b, target_res=target_res, ref=ref_band, crs=crs) / 10000.0
-            print(f"Loaded band {b} with shape: {arr.shape}")
         elif b == "sst":
             arr = load_era5_sst(ds, bbox=bbox, target_res=target_res, ref_band=ref_band, date=date, pat=pat)
-            print(f"Loaded SST band with shape: {arr.shape}")
             #arr = resample_band(ds, b, target_res=target_res, ref=ref_band, crs=crs) / 10000.0
         else:
             raise ValueError(f"Band {b} not found or not supported.")
@@ -394,7 +398,6 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
     Returns:
         df_patches: DataFrame with columns ['zarr_path', 'x', 'y']
     """
-    records = []
     patch_coords = []
 
     for zf in zarr_files:

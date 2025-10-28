@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 from utils.utils import *
 from utils.cdse_utils import *
 from utils.torch import define_model, load_model_weights
-from utils.plot import visualize_patch_prediction, visualize_patches_on_tile
+from utils.plot import visualize_patch_prediction, visualize_patches_on_tile, visualize_sst
 
 def main():
 
@@ -78,6 +78,8 @@ def main():
     )
     np.save(os.path.join(env['DATASET_DIR'], 'patches.npy'), patches)
     logger.success("Patch extraction completed.")
+
+    visualize_sst(patches[100], save_dir="results")
 
     # visualize_patches_on_tile(
     #     zarr_file=zarr_files[0],
