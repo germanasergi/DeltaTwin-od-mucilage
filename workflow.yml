@@ -1,0 +1,66 @@
+nodes:
+  - id: cdse_key
+    ref: inputs.cdse_key
+  - id: cdse_secret
+    ref: inputs.cdse_secret
+  - id: earth_data_hub_key
+    ref: inputs.earth_data_hub_key
+  - id: bbox
+    ref: inputs.bbox
+  - id: start_date
+    ref: inputs.start_date
+  - id: end_date
+    ref: inputs.end_date
+  - id: output_segmentation
+    ref: outputs.out
+    
+edges:
+  # Connect credentials and parameters to the detector
+  - from:
+      id: cdse_key
+    to:
+      id: mucilage_detector
+      port: cdse_key
+
+  - from:
+      id: cdse_secret
+    to:
+      id: mucilage_detector
+      port: cdse_secret
+
+  - from:
+      id: earth_data_hub_pat
+    to:
+      id: mucilage_detector
+      port: pat
+
+  - from:
+      id: bbox
+    to:
+      id: mucilage_detector
+      port: bbox
+
+  - from:
+      id: start_date
+    to:
+      id: mucilage_detector
+      port: start_date
+
+  - from:
+      id: end_date
+    to:
+      id: mucilage_detector
+      port: end_date
+
+  # Connect detector outputs to workflow outputs
+  - from:
+      id: mucilage_detector
+      port: out_raster
+    to:
+      id: mucilage_raster
+
+  - from:
+      id: mucilage_detector
+      port: out_vector
+    to:
+      id: mucilage_vector

@@ -1,0 +1,108 @@
+{
+    "name": "od-mucilage",
+    "description": "The current component detects mucilage in water bodies. It retrieves data from Sentinel-2 and other products in the Earth Data Hub to create masks localising the mucilage when present. To access the data, you need valid CDSE credentials (key and secret) as well as an Earth Hub Data key within the DestinE services. Once you have the required keys, simply provide a bounding box (bbox) for your area of interest.",
+    "license": {
+        "name": "LGPLv3",
+        "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+        "description": "",
+        "copyrights": [
+            {"years": [2025],"company": "European Space Agency"}
+        ]
+    },
+    "owner": "Germana.Sergi",
+    "inputs": {
+        "cdse_key": {
+            "type": "secret",
+            "description": "CDSE: ACCESS_KEY_ID"
+        },
+        "cdse_secret": {
+            "type": "secret",
+            "description": "CDSE: SECRET_ACCESS_KEY"
+        },
+        "earth_data_hub_pat":{
+            "type": "secret",
+            "description": "Earth Data Hub: Personal Access Token"
+        },
+        "bbox": {
+            "type": "string",
+            "description": "Comma-separated coordinates representing: 'min_lon,min_lat,max_lon,max_lat'. (left, bottom, right, top). e.g: 3.2833,45.3833,11.2,50.1833 "
+        },
+        "start_date": {
+            "type": "string",
+            "description": "Start date for data retrieval in 'YYYY-MM-DD' format."
+        },
+        "end_date": {
+            "type": "string",
+            "description": "End date for data retrieval in 'YYYY-MM-DD' format."
+        }
+    },
+    "outputs": {
+        "out": {
+            "type": "Data",
+            "description": "A raster file (.tif)"
+        }
+    },
+    "models": {
+        "mucilage_detector": {
+            "path": "models",
+            "type": "python",
+            "parameters": {
+                "pythonVersion": "3.12.2",
+                "pipRequirements": [
+                            { "name": "aiohttp", "version": "3.9.5" },
+                            {"name":"loguru","version":"0.7.3"},
+                            { "name": "cartopy", "version": "0.24.1" },
+                            { "name": "folium", "version": "0.19.5" },
+                            { "name": "geopandas", "version": "1.0.1" },
+                            { "name": "ipykernel", "version": "6.29.5" },
+                            { "name": "matplotlib", "version": "3.10.1" },
+                            { "name": "numpy", "version": "2.0" },
+                            { "name": "opencv-python-headless", "version": "4.11.0.86" },
+                            { "name": "pandas", "version": "2.2.3" },
+                            { "name": "rasterio", "version": "1.4.3" },
+                            { "name": "pystac-client", "version": "0.9.0" },
+                            {"name": "packaging", "version":"24.1"},
+                            {"name":"zarr", "version":"3.1.0"},
+                            { "name": "xarray", "version": "2025.8.0"},
+                            {"name": "python-dotenv", "version":"1.1.0"},
+                            {"name": "boto3","version": "1.34.20"},
+                            {"name": "lxml",  "version": "5.3.1"},
+                            {"name":"fsspec", "version": "2025.5.1"},
+                            {"name":"dask", "version": "2025.5.1"},
+                            {"name": "plyfile", "version":"1.1.2"}
+                            ],
+                "hardwareRequirements": {
+                    "cpu": "4000m",
+                    "ram": "3Gi"
+                },
+               "command": "python main.py $(inputs.cdse_key) $(inputs.cdse_secret) $(inputs.earth_data_hub_key) $(inputs.bbox)"
+             },
+            "inputs": {
+                "cdse_key":{
+                    "type":"string"
+                },
+                "cdse_secret":{
+                    "type": "string"
+                },
+                "earth_data_hub_pat":{
+                    "type": "string"
+                },
+                "bbox": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                }
+            },
+            "outputs": {
+                "out_point_cloud": {
+                    "type": "Data",
+                    "glob": "binary_mask.tif"
+                }
+            }
+        }
+    }
+}
