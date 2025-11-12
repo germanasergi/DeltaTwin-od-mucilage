@@ -120,7 +120,7 @@ def visualize_patches_on_tile(zarr_file, patches_coords, patch_size=256, bbox=No
         ax.text(x0, y0 - 20, "BBox", color="yellow")
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, f"patches_on_tile.png"), dpi=200)
+    plt.savefig(os.path.join(save_dir, f"patches_on_tile_2.png"), dpi=200)
     plt.close(fig)
 
 

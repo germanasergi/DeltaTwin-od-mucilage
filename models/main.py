@@ -83,13 +83,13 @@ def main():
 
     #visualize_sst(patches[100], save_dir="results")
 
-    # visualize_patches_on_tile(
-    #     zarr_file=zarr_files[0],
-    #     patches_coords=df_coords[df_coords["zarr_file"] == zarr_files[0]],
-    #     patch_size=256,
-    #     bbox=config["query"]["bbox"],
-    #     save_dir="results"
-    # )
+    visualize_patches_on_tile(
+        zarr_file=zarr_files[0],
+        patches_coords=df_coords[df_coords["zarr_file"] == zarr_files[0]],
+        patch_size=256,
+        bbox=config["query"]["bbox"],
+        save_dir=os.path.join(BASE_DIR, "results")
+    )
 
 # Segmentation
     # Parameters from model config
@@ -143,14 +143,16 @@ def main():
             patch_size=256
         )
 
-        export_geotiff_and_vector(
+        tif_path = export_geotiff_and_vector(
             zarr_path=zarr_path,
             prob_map=avg_prob,
             binary_mask=binary_mask,
             confidence=None,   # or your own metric
             amei=None,
-            out_dir=BASE_DIR
+            out_dir=os.path.join(BASE_DIR, "results")
         )
+
+        crop_tiff_to_bbox(tif_path, args.bbox, tif_path)
 
         # visualize_final_panel(
         #     zarr_path=zarr_path,

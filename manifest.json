@@ -25,7 +25,7 @@
         },
         "bbox": {
             "type": "string",
-            "description": "Comma-separated coordinates representing: min_lon,min_lat,max_lon,max_lat. (left, bottom, right, top). e.g: 3.2833,45.3833,11.2,50.1833 "
+            "description": "Space-separated coordinates representing: min_lon,min_lat,max_lon,max_lat. (left, bottom, right, top). e.g: 3.2833 45.3833 11.2 50.1833 "
         },
         "start_date": {
             "type": "string",

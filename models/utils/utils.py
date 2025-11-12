@@ -16,7 +16,6 @@ import rasterio
 from rasterio import features
 from rasterio.transform import rowcol
 from rasterio.features import shapes
-import json
 from shapely.geometry import shape, mapping
 import geopandas as gpd
 
@@ -509,6 +508,7 @@ def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None,
         for i, band in enumerate(arr, 1):
             dst.write(band, i)
     print("Saved:", out_path)
+    return out_path
 
     # # vectorize binary mask
     # shapes_gen = shapes(binary_mask.astype(np.uint8), transform=transform)
@@ -543,3 +543,42 @@ def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None,
     # }
     # with open(out_path.replace(".tif", ".json"), "w") as f:
     #     json.dump(meta, f, indent=2)
+
+import fiona
+from rasterio.mask import mask
+from shapely.geometry import box, mapping
+
+def crop_tiff_to_bbox(tif_path, bbox, out_path):
+    """
+    Crop GeoTIFF to a bbox given in EPSG:4326 (lat/lon).
+    The function will automatically reproject bbox to match raster CRS.
+    """
+    with rasterio.open(tif_path) as src:
+        raster_crs = src.crs
+        print(f"Raster CRS: {raster_crs}")
+        
+        # Create GeoDataFrame from bbox in EPSG:4326
+        bbox_geom = gpd.GeoDataFrame(
+            {"geometry": [box(*bbox)]},
+            crs="EPSG:4326"
+        )
+        
+        # Reproject bbox to raster CRS
+        bbox_geom = bbox_geom.to_crs(raster_crs)
+        geom = [mapping(bbox_geom.iloc[0].geometry)]
+        
+        # Perform crop
+        out_image, out_transform = mask(src, geom, crop=True)
+        out_meta = src.meta.copy()
+        
+        out_meta.update({
+            "driver": "GTiff",
+            "height": out_image.shape[1],
+            "width": out_image.shape[2],
+            "transform": out_transform
+        })
+
+    with rasterio.open(out_path, "w", **out_meta) as dest:
+        dest.write(out_image)
+
+    print(f"✅ Cropped image saved to {out_path}")
