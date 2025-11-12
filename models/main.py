@@ -25,7 +25,6 @@ def main():
     config_path = os.path.join(BASE_DIR, "cfg", "config.yaml")
     config = load_config(config_path=config_path)
     DATASET_DIR = os.path.join(BASE_DIR, config['dataset_version'])
-    # env = setup_environment(config)
 
 # Create Dataset
     # Parameters from dataset config
@@ -45,16 +44,9 @@ def main():
 
     # Process and align data
     _, df_l2a = queries_curation(all_l1c_results, all_l2a_results)
-    df_l2a.to_csv(f"{DATASET_DIR}/output_l2a.csv")
+    #df_l2a.to_csv(f"{DATASET_DIR}/output_l2a.csv")
 
     logger.info("Starting download process...")
-    # download_sentinel_data(
-    #     df_l2a.iloc[[0]],
-    #     env['DATASET_DIR'],
-    #     env['ACCESS_KEY_ID'],
-    #     env['SECRET_ACCESS_KEY'],
-    #     env['ENDPOINT_URL']
-    # )
 
     download_sentinel_data(
         df_output = df_l2a.iloc[[0]],
@@ -86,7 +78,7 @@ def main():
         date=mid_date,
         pat=args.earth_data_hub_pat
     )
-    np.save(os.path.join(DATASET_DIR, 'patches.npy'), patches)
+    #np.save(os.path.join(DATASET_DIR, 'patches.npy'), patches)
     logger.success("Patch extraction completed.")
 
     #visualize_sst(patches[100], save_dir="results")
@@ -157,7 +149,7 @@ def main():
             binary_mask=binary_mask,
             confidence=None,   # or your own metric
             amei=None,
-            out_dir=os.path.join(BASE_DIR, "results")
+            out_dir=BASE_DIR
         )
 
         # visualize_final_panel(

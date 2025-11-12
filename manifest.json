@@ -157,7 +157,7 @@
             "outputs": {
                 "out_segmentation": {
                     "type": "Data",
-                    "glob": "binary_mask.tif"
+                    "glob": "mucilage_mask.tif"
                 }
             }
         }
