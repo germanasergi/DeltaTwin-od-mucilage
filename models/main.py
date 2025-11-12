@@ -10,7 +10,7 @@ import torch.optim as optim
 from loguru import logger
 from datetime import datetime
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split
+#from sklearn.model_selection import train_test_split
 
 from utils.utils import *
 from utils.cdse_utils import *
@@ -21,9 +21,11 @@ def main():
 
     # Setup
     args = parser.parse_args()
-    config_path = '/home/ubuntu/mucilage_pipeline/DeltaTwin/models/cfg/config.yaml'
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(BASE_DIR, "cfg", "config.yaml")
     config = load_config(config_path=config_path)
-    env = setup_environment(config)
+    DATASET_DIR = os.path.join(BASE_DIR, config['dataset_version'])
+    # env = setup_environment(config)
 
 # Create Dataset
     # Parameters from dataset config
@@ -43,15 +45,23 @@ def main():
 
     # Process and align data
     _, df_l2a = queries_curation(all_l1c_results, all_l2a_results)
-    df_l2a.to_csv(f"{env['DATASET_DIR']}/output_l2a.csv")
+    df_l2a.to_csv(f"{DATASET_DIR}/output_l2a.csv")
 
     logger.info("Starting download process...")
+    # download_sentinel_data(
+    #     df_l2a.iloc[[0]],
+    #     env['DATASET_DIR'],
+    #     env['ACCESS_KEY_ID'],
+    #     env['SECRET_ACCESS_KEY'],
+    #     env['ENDPOINT_URL']
+    # )
+
     download_sentinel_data(
-        df_l2a.iloc[[0]],
-        env['DATASET_DIR'],
-        env['ACCESS_KEY_ID'],
-        env['SECRET_ACCESS_KEY'],
-        env['ENDPOINT_URL']
+        df_output = df_l2a.iloc[[0]],
+        base_dir = DATASET_DIR,
+        access_key = args.cdse_key,
+        secret_key = args.cdse_secret,
+        endpoint_url = 'https://eodata.dataspace.copernicus.eu'
     )
 
     logger.success("All downloads completed.")
@@ -59,7 +69,7 @@ def main():
 
 # Patchify
     logger.info("Extracting patch coordinates...")
-    zarr_dir = os.path.join(env['DATASET_DIR'], "target")
+    zarr_dir = os.path.join(DATASET_DIR, "target")
     zarr_files = glob.glob(os.path.join(zarr_dir, "*.zarr"))
 
     if not zarr_files:
@@ -74,9 +84,9 @@ def main():
         stride=256,
         patch_size=config['download'].get('patch_size', 256),
         date=mid_date,
-        pat=env['PAT']
+        pat=args.earth_data_hub_pat
     )
-    np.save(os.path.join(env['DATASET_DIR'], 'patches.npy'), patches)
+    np.save(os.path.join(DATASET_DIR, 'patches.npy'), patches)
     logger.success("Patch extraction completed.")
 
     #visualize_sst(patches[100], save_dir="results")
@@ -95,7 +105,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load model checkpoints
-    checkpoint = os.path.join(env['BASE_DIR'], "weights/unet_checkpoint.pth")
+    checkpoint = os.path.join(BASE_DIR, "weights/unet_checkpoint.pth")
     ckpt = torch.load(checkpoint, map_location=device, weights_only=False)
 
     # Load config
@@ -147,7 +157,7 @@ def main():
             binary_mask=binary_mask,
             confidence=None,   # or your own metric
             amei=None,
-            out_dir="results"
+            out_dir=os.path.join(BASE_DIR, "results")
         )
 
         # visualize_final_panel(
@@ -163,6 +173,10 @@ def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run inference on a single patch")
+    parser.add_argument("--cdse_key", type=str, required=True)
+    parser.add_argument("--cdse_secret", type=str, required=True)
+    parser.add_argument("--earth_data_hub_pat", type=str, required=True)
+    #parser.add_argument("--bbox", type=str, help="Bounding box [minx miny maxx maxy]")
     parser.add_argument("--bbox", type=float, nargs=4, help="Bounding box [minx miny maxx maxy]")
     parser.add_argument("--start_date", type=str, required=True)
     parser.add_argument("--end_date", type=str, required=True)

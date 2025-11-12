@@ -11,4 +11,4 @@
 *.csv
 
 # Ignore model checkpoints
-/weights/unet_checkpoint.pth
+models/weights/unet_checkpoint.pth

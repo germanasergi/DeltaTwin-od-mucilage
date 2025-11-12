@@ -1,16 +1,10 @@
 import os
 import pandas as pd
 import numpy as np
-from requests import patch
-import torch
 import torch.nn.functional as F
 from pyproj import Transformer
 import xarray as xr
 
-import cv2
-from skimage import measure
-from math import sqrt
-import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches

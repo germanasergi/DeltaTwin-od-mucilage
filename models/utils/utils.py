@@ -10,12 +10,11 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import xarray as xr
-import boto3
+# import boto3
 
 import rasterio
 from rasterio import features
 from rasterio.transform import rowcol
-from rasterio.crs import CRS
 from rasterio.features import shapes
 import json
 from shapely.geometry import shape, mapping
@@ -53,7 +52,7 @@ def setup_environment(config):
     BUCKET_NAME = config['bucket_name']
     DATASET_VERSION = config['dataset_version']
     BASE_DIR = config['base_dir']
-    DATASET_DIR = f"{BASE_DIR}/{DATASET_VERSION}"
+    DATASET_DIR = os.path.join(BASE_DIR, DATASET_VERSION)
     BANDS = config['bands']
 
     # Setup connector
@@ -483,7 +482,7 @@ def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None,
     ds = xr.open_datatree(zarr_path, engine="zarr", mask_and_scale=False)
     ref_band = ds["measurements/reflectance/r10m/b04"]
     transform = ref_band.rio.transform()
-    crs = ref_band.rio.crs
+    crs = ds.attrs.get("other_metadata", {}).get("horizontal_CRS_code")
 
     # stack available layers
     bands = [prob_map.astype(np.float32), binary_mask.astype(np.uint8)]
@@ -511,36 +510,36 @@ def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None,
             dst.write(band, i)
     print("Saved:", out_path)
 
-    # vectorize binary mask
-    shapes_gen = shapes(binary_mask.astype(np.uint8), transform=transform)
-    polygons = []
-    for geom, val in shapes_gen:
-        if val == 1:
-            polygons.append(shape(geom))
+    # # vectorize binary mask
+    # shapes_gen = shapes(binary_mask.astype(np.uint8), transform=transform)
+    # polygons = []
+    # for geom, val in shapes_gen:
+    #     if val == 1:
+    #         polygons.append(shape(geom))
 
-    gdf = gpd.GeoDataFrame(geometry=polygons, crs=crs)
-    # Compute mean probability per polygon
-    mean_vals = []
-    for geom in polygons:
-        # Convert polygon mask to array indices
-        mask = features.geometry_mask([geom], 
-                                    transform=transform, 
-                                    invert=True, 
-                                    out_shape=prob_map.shape)
-        vals = prob_map[mask]
-        mean_vals.append(np.nanmean(vals) if vals.size > 0 else np.nan)
+    # gdf = gpd.GeoDataFrame(geometry=polygons, crs=crs)
+    # # Compute mean probability per polygon
+    # mean_vals = []
+    # for geom in polygons:
+    #     # Convert polygon mask to array indices
+    #     mask = features.geometry_mask([geom], 
+    #                                 transform=transform, 
+    #                                 invert=True, 
+    #                                 out_shape=prob_map.shape)
+    #     vals = prob_map[mask]
+    #     mean_vals.append(np.nanmean(vals) if vals.size > 0 else np.nan)
 
-    gdf["prob_mean"] = mean_vals
-    gdf.to_file(out_path.replace(".tif", ".geojson"), driver="GeoJSON")
-    print("Saved vector polygons.")
+    # gdf["prob_mean"] = mean_vals
+    # gdf.to_file(out_path.replace(".tif", ".geojson"), driver="GeoJSON")
+    # print("Saved vector polygons.")
 
-    # metadata JSON
-    meta = {
-        "file_source": os.path.basename(zarr_path),
-        "coverage_percent": float(100 * binary_mask.mean()),
-        "mean_probability": float(np.nanmean(prob_map)),
-        "geotiff": os.path.basename(out_path),
-        "geojson": os.path.basename(out_path.replace(".tif", ".geojson"))
-    }
-    with open(out_path.replace(".tif", ".json"), "w") as f:
-        json.dump(meta, f, indent=2)
+    # # metadata JSON
+    # meta = {
+    #     "file_source": os.path.basename(zarr_path),
+    #     "coverage_percent": float(100 * binary_mask.mean()),
+    #     "mean_probability": float(np.nanmean(prob_map)),
+    #     "geotiff": os.path.basename(out_path),
+    #     "geojson": os.path.basename(out_path.replace(".tif", ".geojson"))
+    # }
+    # with open(out_path.replace(".tif", ".json"), "w") as f:
+    #     json.dump(meta, f, indent=2)
