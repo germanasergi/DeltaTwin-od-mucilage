@@ -130,7 +130,7 @@
                 ],
                 "hardwareRequirements": {
                     "cpu": "4000m",
-                    "ram": "8Gi"
+                    "ram": "16Gi"
                 },
                 "command": "python main.py --cdse_key $(inputs.cdse_key) --cdse_secret $(inputs.cdse_secret) --earth_data_hub_pat $(inputs.earth_data_hub_pat) --bbox $(inputs.bbox) --start_date $(inputs.start_date) --end_date $(inputs.end_date)"
              },

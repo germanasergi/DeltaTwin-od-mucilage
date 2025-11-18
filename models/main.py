@@ -83,13 +83,13 @@ def main():
 
     #visualize_sst(patches[100], save_dir="results")
 
-    visualize_patches_on_tile(
-        zarr_file=zarr_files[0],
-        patches_coords=df_coords[df_coords["zarr_file"] == zarr_files[0]],
-        patch_size=256,
-        bbox=config["query"]["bbox"],
-        save_dir=os.path.join(BASE_DIR, "results")
-    )
+    # visualize_patches_on_tile(
+    #     zarr_file=zarr_files[0],
+    #     patches_coords=df_coords[df_coords["zarr_file"] == zarr_files[0]],
+    #     patch_size=256,
+    #     bbox=config["query"]["bbox"],
+    #     save_dir=os.path.join(BASE_DIR, "results")
+    # )
 
 # Segmentation
     # Parameters from model config
@@ -149,7 +149,7 @@ def main():
             binary_mask=binary_mask,
             confidence=None,   # or your own metric
             amei=None,
-            out_dir=os.path.join(BASE_DIR, "results")
+            out_dir=BASE_DIR
         )
 
         crop_tiff_to_bbox(tif_path, args.bbox, tif_path)

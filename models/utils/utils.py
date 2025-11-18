@@ -13,10 +13,8 @@ import xarray as xr
 # import boto3
 
 import rasterio
-from rasterio import features
-from rasterio.transform import rowcol
-from rasterio.features import shapes
-from shapely.geometry import shape, mapping
+from rasterio.mask import mask
+from shapely.geometry import box, mapping
 import geopandas as gpd
 
 from tqdm import tqdm
@@ -279,7 +277,8 @@ def load_era5_sst(ds, bbox, target_res, ref_band, date, pat):
     sst = sst.rio.write_crs("EPSG:4326")
 
     # Get reference Sentinel-2 band (for reprojection and shape match)
-    ref = ds[f"measurements/reflectance/{target_res}/{ref_band}"].rio.write_crs("EPSG:32633")
+    crs = ds.attrs.get("other_metadata", {}).get("horizontal_CRS_code")
+    ref = ds[f"measurements/reflectance/{target_res}/{ref_band}"].rio.write_crs(crs)
 
     # Reproject and match resolution to Sentinel-2
     try:
@@ -333,6 +332,7 @@ def resample_band(ds, band, target_res="r10m", ref="b04", crs="EPSG:32632"):
     """
     Resample any band (reflectance or classification) to target resolution.
     """
+    crs = ds.attrs.get("other_metadata", {}).get("horizontal_CRS_code")
     ref_band = ds[f"measurements/reflectance/{target_res}/{ref}"].rio.write_crs(crs) # Reference band at target resolution
 
     if band == "scl":
@@ -369,6 +369,8 @@ def build_stack(ds, bands, target_res="r10m", ref_band="b04", crs="EPSG:32632", 
         xarray.DataArray with dimensions (y, x, band)
     """
     stack = []
+
+    crs = ds.attrs.get("other_metadata", {}).get("horizontal_CRS_code")
 
     for b in bands:
         if b in ds['measurements/reflectance/r10m'] or \
@@ -414,7 +416,7 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
         
         # Retrieve shape bands
         band = ds['measurements/reflectance/r10m/b04']
-        crs_utm = "EPSG:32633"
+        crs_utm = ds.attrs.get("other_metadata", {}).get("horizontal_CRS_code")
         transform = band.rio.transform()
         x_coords = band['x'].values
         y_coords = band['y'].values
@@ -543,10 +545,6 @@ def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None,
     # }
     # with open(out_path.replace(".tif", ".json"), "w") as f:
     #     json.dump(meta, f, indent=2)
-
-import fiona
-from rasterio.mask import mask
-from shapely.geometry import box, mapping
 
 def crop_tiff_to_bbox(tif_path, bbox, out_path):
     """
