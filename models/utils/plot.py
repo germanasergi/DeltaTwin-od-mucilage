@@ -177,7 +177,8 @@ def stitch_predictions(zarr_file, df_coords, probs_list, preds_list, patch_size=
     count = np.zeros((H, W), np.uint16)
 
     # Stitch patch probabilities
-    for i, row in df_coords.iterrows():
+    df_coords_zarr = df_coords[df_coords['zarr_file'] == zarr_file].reset_index(drop=True)
+    for i, row in df_coords_zarr.iterrows():
         top, left = int(row["y"]), int(row["x"])
         prob = probs_list[i]
         h, w = prob.shape

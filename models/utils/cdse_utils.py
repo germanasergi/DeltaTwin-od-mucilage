@@ -84,13 +84,12 @@ def remove_last_segment_rsplit(sentinel_id):
     return parts[0]
 
 
-def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover, num_days=10):
+def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover, num_days=10,  max_lookback_days=5):
     """Query Sentinel data for the specified parameters"""
     # Generate the polygon string from bbox [minx, miny, maxx, maxy]
     polygon = f"POLYGON (({bbox[0]} {bbox[1]}, {bbox[0]} {bbox[3]}, {bbox[2]} {bbox[3]}, {bbox[2]} {bbox[1]}, {bbox[0]} {bbox[1]}))"
 
     # Initialize empty lists to store all results
-    all_l1c_results = []
     all_l2a_results = []
 
     # Loop through the date range with a step of 10 days
@@ -119,39 +118,49 @@ def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover, 
             l2a_json = requests.get(l2a_query_url).json()
             l2a_results = l2a_json.get('value', [])
 
+            if not l2a_results:
+                # If no data, look back in time
+                lookback_days = 1
+                found_data = False
+                while lookback_days <= max_lookback_days:
+                    new_start = current_date - timedelta(days=lookback_days)
+                    new_end = next_date - timedelta(days=lookback_days)
+                    start_interval = f"{new_start.strftime('%Y-%m-%dT00:00:00.000Z')}"
+                    end_interval = f"{new_end.strftime('%Y-%m-%dT23:59:59.999Z')}"
+                    date_interval = f"{new_start.strftime('%Y-%m-%d')}/{new_end.strftime('%Y-%m-%d')}"
+
+                    l2a_results = requests.get(
+                        create_cdse_query_url(
+                            product_type="MSIL2A",
+                            polygon=polygon,
+                            start_interval=start_interval,
+                            end_interval=end_interval,
+                            max_cloud_cover=max_cloud_cover,
+                            max_items=max_items,
+                            orderby="ContentDate/Start"
+                        )
+                    ).json().get("value", [])
+
+                    if l2a_results:
+                        found_data = True
+                        logger.info(f"No data for original interval {current_date}/{next_date}, using closest available {date_interval}")
+                        break
+                    lookback_days += 1
+
+                if not found_data:
+                    logger.warning(f"No Sentinel data found within {max_lookback_days} days before {current_date}")
+                    current_date = next_date
+                    continue  # skip this interval
+
             # Add interval metadata
             for item in l2a_results:
                 item['query_interval'] = date_interval
 
-            # Query for L1C products
-            l1c_query_url = create_cdse_query_url(
-                product_type="MSIL1C",
-                polygon=polygon,
-                start_interval=start_interval,
-                end_interval=end_interval,
-                max_cloud_cover=max_cloud_cover,
-                max_items=max_items,
-                orderby="ContentDate/Start"
-            )
-            l1c_json = requests.get(l1c_query_url).json()
-            l1c_results = l1c_json.get('value', [])
-
-            # Add interval metadata
-            for item in l1c_results:
-                item['query_interval'] = date_interval
-
-            # Log counts
-            l1c_count = len(l1c_results)
             l2a_count = len(l2a_results)
 
-            if l1c_count != l2a_count:
-                logger.warning(f"Mismatch in counts for {date_interval}: L1C={l1c_count}, L2A={l2a_count}")
-
             # Append results
-            all_l1c_results.extend(l1c_results)
             all_l2a_results.extend(l2a_results)
 
-            logger.info(f"L1C Items for {date_interval}: {l1c_count}")
             logger.info(f"L2A Items for {date_interval}: {l2a_count}")
             logger.info("####")
 
@@ -161,46 +170,28 @@ def query_sentinel_data(bbox, start_date, end_date, max_items, max_cloud_cover, 
         # Move to the next interval
         current_date = next_date
 
-    return all_l1c_results, all_l2a_results
+    return all_l2a_results
 
-
-def queries_curation(all_l1c_results, all_l2a_results):
+def queries_curation(all_l2a_results):
     """Process and align L1C and L2A data to ensure they match"""
     # Create DataFrames
-    df_l1c = pd.DataFrame(all_l1c_results)
     df_l2a = pd.DataFrame(all_l2a_results)
 
     # Select required columns
     df_l2a = df_l2a[["Name", "S3Path", "Footprint", "GeoFootprint", "Attributes"]]
-    df_l1c = df_l1c[["Name", "S3Path", "Footprint", "GeoFootprint", "Attributes"]]
 
     # Extract cloud cover
-    df_l1c['cloud_cover'] = df_l1c['Attributes'].apply(lambda x: x[2]["Value"])
     df_l2a['cloud_cover'] = df_l2a['Attributes'].apply(lambda x: x[2]["Value"])
     # Drop the Attributes column (note: inplace=True needed or need to reassign)
-    df_l1c = df_l1c.drop(columns=['Attributes'], axis=1)
     df_l2a = df_l2a.drop(columns=['Attributes'], axis=1)
     # Create id_key for matching
     df_l2a['id_key'] = df_l2a['Name'].apply(remove_last_segment_rsplit)
     df_l2a['id_key'] = df_l2a['id_key'].str.replace('MSIL2A_', 'MSIL1C_')
-    df_l1c['id_key'] = df_l1c['Name'].apply(remove_last_segment_rsplit)
 
     # Remove duplicates
     df_l2a = df_l2a.drop_duplicates(subset='id_key', keep='first')
-    df_l1c = df_l1c.drop_duplicates(subset='id_key', keep='first')
 
-    # Align both datasets
-    df_l2a = df_l2a[df_l2a['id_key'].isin(df_l1c['id_key'])]
-    df_l1c = df_l1c[df_l1c['id_key'].isin(df_l2a['id_key'])]
-
-    # Make sure the order is the same
-    df_l2a = df_l2a.set_index('id_key')
-    df_l1c = df_l1c.set_index('id_key')
-
-    df_l2a = df_l2a.loc[df_l1c.index].reset_index()
-    df_l1c = df_l1c.reset_index()
-
-    return df_l1c, df_l2a
+    return df_l2a
 
 
 

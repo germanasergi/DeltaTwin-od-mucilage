@@ -205,19 +205,6 @@ def download_sentinel_data(df_output, base_dir, access_key, secret_key, endpoint
                 except Exception as ce:
                     logger.warning(f"Could not clean temp SAFE {safe_dir}: {ce}")
 
-def write_zarr_from_safe(safe_path, repo_path):
-    """
-    Convert a Sentinel-2 SAFE folder to a Zarr store inside an Icechunk repository.
-    """
-    # Step 1: Convert SAFE -> Zarr (classic Zarr store)
-    zarr_store_path = Path(repo_path) / f"{Path(safe_path).stem}.zarr"
-    convert_safe_to_zarr(safe_path, zarr_store_path)  # you already had this logic
-
-    # Step 2: Add Zarr store to Icechunk repo
-    repo = Repository(repo_path)
-    repo.add_dataset(zarr_store_path)
-    repo.commit("Added SAFE -> Zarr dataset")
-
 
 
 ####################### PATCHES ##################################################################
@@ -402,6 +389,7 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
     Returns:
         df_patches: DataFrame with columns ['zarr_path', 'x', 'y']
     """
+    patches_per_zarr = {}
     patch_coords = []
 
     for zf in zarr_files:
@@ -449,7 +437,7 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
 
         print(f"AOI shape for {zf}: {H}x{W} pixels")
 
-        all_patches = []
+        patches_per_zarr[zf] = []
         count = 0
 
         for y in range(0, H - patch_size + 1, stride):
@@ -463,7 +451,7 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
                 patch = stack_np[y:y+patch_size, x:x+patch_size, :]
                 if np.isnan(patch).any() or np.isinf(patch).any():
                     continue
-                all_patches.append(patch)
+                patches_per_zarr[zf].append(patch)
 
                 patch_coords.append({
                     "zarr_file": zf,
@@ -472,11 +460,10 @@ def create_patches_dataframe(zarr_files, bands, bbox, target_res, stride, patch_
                 })
                 count += 1
     
-    X = np.stack(all_patches, axis=0)
     df_coords = pd.DataFrame(patch_coords)
-    print(f"Total patches collected: {X.shape[0]}")
+    print(f"Total patches collected: {sum(len(patches) for patches in patches_per_zarr.values())}")
 
-    return X, df_coords
+    return patches_per_zarr, df_coords
 
 
 def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None, amei=None, out_dir="results"):
@@ -493,7 +480,11 @@ def export_geotiff_and_vector(zarr_path, prob_map, binary_mask, confidence=None,
         bands.append(amei.astype(np.float32))
     arr = np.stack(bands, axis=0)
 
-    out_path = os.path.join(out_dir, f"mucilage_mask.tif") # ADAPT filename as needed
+    # zarr name
+    zarr_name = os.path.basename(zarr_path).replace('.zarr', '')
+
+    out_path = os.path.join(out_dir, f"mucilage_mask_{zarr_name}.tif") # ADAPTED filename
+    # out_path = os.path.join(out_dir, f"mucilage_mask.tif") old version for unique .tif output
 
     with rasterio.open(
         out_path,

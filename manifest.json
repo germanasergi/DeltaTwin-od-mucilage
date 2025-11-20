@@ -29,17 +29,17 @@
         },
         "start_date": {
             "type": "string",
-            "description": "Start date for data retrieval in 'YYYY-MM-DD' format."
+            "description": "Start date for data retrieval in 'YYYY-MM-DD' format.  'today' can be used to specify the current date."
         },
         "end_date": {
             "type": "string",
-            "description": "End date for data retrieval in 'YYYY-MM-DD' format."
+            "description": "End date for data retrieval in 'YYYY-MM-DD' format. 'today' can be used to specify the current date."
         }
     },
     "outputs": {
         "out": {
             "type": "Data",
-            "description": "A raster file (.tif)"
+            "description": "A zip (.zip) containing all the raster files (.tif)"
         }
     },
     "models": {
@@ -157,7 +157,7 @@
             "outputs": {
                 "out_segmentation": {
                     "type": "Data",
-                    "glob": "mucilage_mask.tif"
+                    "glob": "mucilage_masks.zip"
                 }
             }
         }
