@@ -4,6 +4,9 @@
 # Ignore downloaded data
 **/data/
 
+# Ignore the results folder
+**/results/
+
 # Ignore log files
 *.log
 
