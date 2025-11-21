@@ -23,8 +23,8 @@ To run the od-detector locally, follow these steps:
 1. **Clone the Repository**:
 
    ```bash
-   git clone https://github.com/germanasergi/DeltaTwin.git
-   cd DeltaTwin
+   git clone https://github.com/germanasergi/DeltaTwin-od-mucilage.git
+   cd DeltaTwin-od-mucilage
    ```
 
 2. **Create and Activate a Conda Environment**:
