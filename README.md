@@ -107,8 +107,11 @@ deltatwin component publish -t whatever-tag 0.0.1
 
 ## 3 - Output Example
 
-Below is an example of the Delta Twin output. The L2A product download, preprocessed, ingested by the model to generate the probability map and the binary mask of mucilage segmentation. The worflow should output a raster of mucilage location.
+Below is an example of the Delta Twin output. The L2A product download, preprocessed, ingested by the model to generate the probability map and the binary mask of mucilage segmentation.
 ![WorkflowIllustration](assets/Picture2.png)
+
+The worflow should output a raster representing mucilage location.
+
 ![OutputVisualization](assets/Picture3.png)
 
 
