@@ -18,6 +18,9 @@ from utils.cdse_utils import *
 from utils.torch import define_model, load_model_weights
 from utils.plot import *
 
+import gradio as gr
+
+
 def main():
 
     # Setup
@@ -40,6 +43,8 @@ def main():
     mid_date = start_date + (end_date - start_date) / 2
     max_items = query_config['max_items']
     max_cloud_cover = query_config['max_cloud_cover']
+
+    print(f"Querying data from {start_date} to {end_date} for bbox {bbox}...")
 
     all_l2a_results = query_sentinel_data(
         bbox, start_date, end_date, max_items, max_cloud_cover
@@ -181,7 +186,6 @@ def main():
         #     df_coords=df_coords.assign(patch_size=256),
         #     out_path=os.path.join("results", "final_panel.png")
         # )
-
 
 
 
