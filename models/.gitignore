@@ -11,10 +11,10 @@
 *.log
 
 # Ignore gradio test main
-main_gradio.py
+**/main_gradio.py
 
 # Ignore csv files
 *.csv
 
-# Ignore model checkpoints
-models/weights/unet_checkpoint.pth
+# # Ignore model checkpoints
+# **/models/weights/unet_checkpoint.pth
