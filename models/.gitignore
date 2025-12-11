@@ -10,6 +10,9 @@
 # Ignore log files
 *.log
 
+# Ignore gradio test main
+main_gradio.py
+
 # Ignore csv files
 *.csv
 
