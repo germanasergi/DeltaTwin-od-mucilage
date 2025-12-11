@@ -1,6 +1,7 @@
 # DeltaTwin Mucilage Detection
 
-DestinE DeltaTwin workflow creation/run/publish for mucilage detection using Sentinel-2 products
+DestinE DeltaTwin workflow creation/run/publish for mucilage detection using Sentinel-2 products.
+For a detailed explanation on the DeltaTwin, see at: [DeltaTwin Doc](https://deltatwin.destine.eu/docs/introduction)
 
 ## Table of Contents
 
@@ -82,19 +83,36 @@ deltatwin run start_local -i inputs_file.json --debug
 ### Publish the Delta Twin
 
 1. **Login to DeltaTwin**:
+```
+pip install deltatwin
+```
+2. **Log in**
+```
+deltatwin login username password -a https://api.deltatwin.destine.eu/
+```
+3. **Refresh token**
+```
+deltatwin login
+```
+4. **Run locally**
+Goes to the Folder [Deltatwin](/DeltaTwin/), fill the [inputs_file](/DeltaTwin/inputs_file.json) and start by running locally
+```
+deltatwin run start_local -i inputs_file.json --debug 
+```
 
-   ```bash
-   deltatwin login
-   ```
+5. **Publish the Component**
+```
+deltatwin component publish -t whatever-tag 0.0.1 
+```
 
-2. **Publish the Component**:
+## 3 - Output Example
 
-   ```bash
-   deltatwin component publish -t test -v private 0.1
-   ```
+Below is an example of the Delta Twin output. The L2A product download, preprocessed, ingested by the model to generate the probability map and the binary mask of mucilage segmentation. The worflow should output a raster of mucilage location.
+![WorkflowIllustration](assets/Picture2.png)
+![OutputVisualization](assets/Picture3.png)
 
 
-## Repository Structure
+## 4 - Repository Structure
 
 The repository is structured as follows:
 
@@ -121,4 +139,4 @@ The repository is structured as follows:
 └── requirements.txt
 ```
 
-This structure includes the main directories and files necessary for the DestinE DeltaTwin workflow creation for Sentinel2 L2A product generation with AI.
+This structure includes the main directories and files necessary for the DestinE DeltaTwin workflow creation for AI mucilage detection using Sentinel-2 products.
